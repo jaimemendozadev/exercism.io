@@ -115,16 +115,36 @@ class TeamsTest < Minitest::Test
   end
 
   def test_team_creation_with_name
-    post '/teams', { team: { name: 'No Members', slug: 'no_members', usernames: "" } }, login(alice)
+    post '/teams', { team: { name: 'No Members', slug: 'no_members', usernames: '', description: '' } }, login(alice)
     team = Team.first
 
     assert_equal 'No Members', team.name
   end
 
+  def test_team_creation_with_description
+    post '/teams', {
+      team: { slug: 'no_members', usernames: '' , description: 'Team without members' }
+    }, login(alice)
+
+    team = Team.first
+
+    assert_equal 'Team without members', team.description
+  end
+
+  def test_public_team_creation
+    post '/teams', {
+      team: { slug: 'no_members', usernames: '' , description: 'Team without members', public: '1' }
+    }, login(alice)
+
+    team = Team.first
+
+    assert team.public?
+  end
+
   def test_team_creation_with_no_members
     assert_equal 0, alice.managed_teams.size
 
-    post '/teams', { team: { slug: 'no_members', usernames: "" } }, login(alice)
+    post '/teams', { team: { slug: 'no_members', usernames: '' } }, login(alice)
 
     team = Team.first
 
@@ -296,14 +316,18 @@ class TeamsTest < Minitest::Test
     refute Team.exists?(slug: 'delete')
   end
 
-  def test_edit_teams_name_and_slug
-    team = Team.by(alice).defined_with(slug: 'edit', usernames: bob.username.to_s)
+  def test_edit_teams_attributes
+    team = Team.by(alice).defined_with(slug: 'edit', usernames: bob.username.to_s, description: 'No name')
     team.save
 
-    put "/teams/#{team.slug}", { team: { name: 'New name', slug: 'new_slug' } }, login(alice)
+    refute team.public?
+
+    put "/teams/#{team.slug}", { team: { name: 'New name', slug: 'new_slug', description: 'With name', public: '1'} }, login(alice)
 
     assert_response_status(302)
     assert team.reload.name == 'New name'
+    assert team.reload.description == 'With name'
+    assert team.reload.public?
   end
 
   def test_unconfirmed_memberships_after_invitation
